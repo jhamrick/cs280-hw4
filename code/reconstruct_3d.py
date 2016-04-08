@@ -16,8 +16,56 @@ def fundamental_matrix(matches):
         their corresponding epipolar lines
 
     """
-    F = np.eye(3)
-    res_err = 0
+    # normalize points
+    p1 = np.concatenate([matches[:, :2], np.ones((len(matches), 1))], axis=1)
+    p2 = np.concatenate([matches[:, 2:], np.ones((len(matches), 1))], axis=1)
+    mu1 = np.mean(p1, axis=0)
+    mu2 = np.mean(p2, axis=0)
+    std1 = np.std(p1, axis=0)
+    std2 = np.std(p2, axis=0)
+    T1 = np.array([
+        [1 / std1[0], 0, -mu1[0] / std1[0]],
+        [0, 1 / std1[1], -mu1[1] / std1[1]],
+        [0, 0, 1]
+    ])
+    T2 = np.array([
+        [1 / std2[0], 0, -mu2[0] / std2[0]],
+        [0, 1 / std2[1], -mu2[1] / std2[1]],
+        [0, 0, 1]
+    ])
+    x1 = np.dot(T1, p1.T).T
+    x2 = np.dot(T2, p2.T).T
+
+    # construct A matrix
+    A = np.empty((len(matches), 9))
+    for i in range(len(matches)):
+        u, v, _ = x1[i]
+        a, b, _ = x2[i]
+        A[i] = np.array([a*u, a*v, a, b*u, b*v, b, u, v, 1])
+
+    # SVD of A
+    _, _, V = np.linalg.svd(A)
+    # find minimum right eigenvector -- this is our f because when multiplied
+    # with the other eigenvectors we get zero, which is what we want
+    f = V[2]
+    F = f.reshape((3, 3))
+    # enforce that it is rank 2
+    U, s, V = np.linalg.svd(F)
+    S = np.diag(s)
+    S[2, 2] = 0
+    F = np.dot(U, np.dot(S, V))
+
+    # de-normalize F
+    F = np.dot(T2.T, np.dot(F, T1))
+
+    # compute residual error
+    d12 = np.empty(len(matches))
+    d21 = np.empty(len(matches))
+    for i in range(len(matches)):
+        d12[i] = np.abs(np.dot(p1[i], np.dot(F, p2[i]))) / np.linalg.norm(np.dot(F, p2[i]))
+        d21[i] = np.abs(np.dot(p2[i], np.dot(F, p1[i]))) / np.linalg.norm(np.dot(F, p1[i]))
+    res_err = np.sum(d12 ** 2 + d21 ** 2) / (2 * len(matches))
+
     return F, res_err
 
 
