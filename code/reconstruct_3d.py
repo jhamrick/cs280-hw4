@@ -71,16 +71,34 @@ def fundamental_matrix(matches):
 
 def find_rotation_translation(E):
     """This function estimates the extrinsic parameters of the second camera.
-    The function should return a cell array R of all the possible rotation
-    matrices and a cell array t with all the possible translation vectors.
+    The function should return a numpy array R of all the possible rotation
+    matrices and a numpy array t with all the possible translation vectors.
 
     R : 3D numpy array with the possible rotation matrices of second camera
     t : 2D numpy array of the possible translation vectors of second camera
 
     """
-    R = np.array([np.eye(3)])
-    t = np.array([np.zeros(3)])
-    return R, t
+    # t is the third left singular vector of E
+    U, _, _ = np.linalg.svd(E)
+    t = U[:, 2]
+
+    # cross product matrix
+    tx = np.array([
+        [0, -t[2], t[1]],
+        [t[2], 0, -t[0]],
+        [-t[1], t[0], 0]
+    ])
+
+    # E = [t]x * R
+    # R = ([t]x)^-1 * E
+    R = np.dot(np.linalg.pinv(tx), E)
+
+    # generate a range of possible scalings of t
+    c = np.linspace(-10, 10, 100)
+    all_t = t[None] * c[:, None]
+    all_R = R[None] / c[:, None, None]
+
+    return all_R, all_t
 
 
 def find_3d_points(E, P1, P2):
