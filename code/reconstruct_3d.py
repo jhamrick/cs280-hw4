@@ -169,10 +169,12 @@ def plot_3d(points, R, t):
     ax.plot([0], [0], [0], 'ro', zdir='y')
     ax.plot([t[0]], [t[1]], [t[2]], 'bo', zdir='y')
 
-    v1 = np.array([0, 0.1, 0])
-    v2 = np.dot(R, v) + t
-    ax.plot([0, v1[0]], [0, v1[1]], [0, v1[2]], 'r-', zdir='y')
-    ax.plot([0, v2[0]], [0, v2[1]], [0, v2[2]], 'r-', zdir='y')
+    o1 = np.array([0, 0, 0])
+    v1 = np.array([0, 0, 0.5])
+    o2 = np.dot(R, o1) + t
+    v2 = np.dot(R, v1) + t
+    ax.plot([o1[0], v1[0]], [o1[1], v1[1]], [o1[2], v1[2]], 'r-', zdir='y')
+    ax.plot([o2[0], v2[0]], [o2[1], v2[1]], [o2[2], v2[2]], 'b-', zdir='y')
 
     xmin = min(0, t[0], points[ok, 0].min())
     xmax = max(0, t[0], points[ok, 0].max())
