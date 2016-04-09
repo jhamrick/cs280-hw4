@@ -3,6 +3,7 @@ import numpy as np
 import scipy.misc
 import scipy.io
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 
 def fundamental_matrix(matches):
@@ -147,12 +148,36 @@ def find_3d_points(matches, P1, P2, R, t):
     return points, err
 
 
-def plot_3d(points):
+def plot_3d(points, R, t):
     """This function plots the 3D points in a 3D plot and displays the camera
     centers for both cameras.
 
     """
-    pass
+    # find points that are in front of the cameras
+    Z1 = points[:, 2]
+    Z2 = (np.dot(R[2], points.T) + t[2]).T
+    ok = ((Z1 > 0) & (Z2 > 0))
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.plot(points[ok, 0], points[ok, 1], points[ok, 2], 'ro', zdir='y', alpha=0.3, markersize=2)
+    ax.plot([0], [0], [0], 'ko', zdir='y')
+    ax.plot([t[0]], [t[1]], [t[2]], 'ko', zdir='y')
+
+    xmin = min(0, t[0], points[ok, 0].min())
+    xmax = max(0, t[0], points[ok, 0].max())
+    ymin = min(0, t[1], points[ok, 1].min())
+    ymax = max(0, t[1], points[ok, 1].max())
+    zmin = min(0, t[2], points[ok, 2].min())
+    zmax = max(0, t[2], points[ok, 2].max())
+
+    ax.set_xlim([xmin, xmax])
+    ax.set_ylim([zmin, zmax])
+    ax.set_zlim([ymin, ymax])
+
+    ax.set_xlabel("X")
+    ax.set_ylabel("Z")
+    ax.set_zlabel("Y")
 
 
 def reconstruct_3d(name, plot=True):
@@ -225,7 +250,7 @@ def reconstruct_3d(name, plot=True):
             R2 = R[ri]
             P2 = np.dot(K2, np.concatenate([R2, t2[:, None]], axis=1))
 
-            points_3d, errs[ti, ri] = find_3d_points(matches, P1, P2)
+            points_3d, errs[ti, ri] = find_3d_points(matches, P1, P2, R2, t2)
 
             Z1 = points_3d[:, 2]
             Z2 = (np.dot(R2[2], points_3d.T) + t2[2]).T
@@ -240,6 +265,6 @@ def reconstruct_3d(name, plot=True):
     P2 = np.dot(K2, np.concatenate([R2, t2[:, None]], axis=1))
 
     # compute the 3D points with the final P2
-    points = find_3d_points()
+    points, err = find_3d_points(matches, P1, P2, R2, t2)
 
-    plot_3d()
+    plot_3d(points, R2, t2)
