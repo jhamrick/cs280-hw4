@@ -47,12 +47,12 @@ def fundamental_matrix(matches):
     _, _, V = np.linalg.svd(A)
     # find minimum right eigenvector -- this is our f because when multiplied
     # with the other eigenvectors we get zero, which is what we want
-    f = V[2]
+    f = V[-1]
     F = f.reshape((3, 3))
     # enforce that it is rank 2
     U, s, V = np.linalg.svd(F)
     S = np.diag(s)
-    S[2, 2] = 0
+    S[-1, -1] = 0
     F = np.dot(U, np.dot(S, V))
 
     # de-normalize F
@@ -79,29 +79,29 @@ def find_rotation_translation(E):
 
     """
     # t is the third left singular vector of E
-    U, _, _ = np.linalg.svd(E)
-    t = U[:, 2]
+    U, _, V = np.linalg.svd(E)
+    t = np.array([U[:, 2], -U[:, 2]])
 
-    # cross product matrix
-    tx = np.array([
-        [0, -t[2], t[1]],
-        [t[2], 0, -t[0]],
-        [-t[1], t[0], 0]
+    # R = U * R90.T * V
+    R90 = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
+    R270 = np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
+    all_R = np.array([
+        np.dot(U, np.dot(R90.T, V)),
+        -np.dot(U, np.dot(R90.T, V)),
+        np.dot(U, np.dot(R270.T, V)),
+        -np.dot(U, np.dot(R270.T, V))
     ])
 
-    # E = [t]x * R
-    # R = ([t]x)^-1 * E
-    R = np.dot(np.linalg.pinv(tx), E)
+    R = []
+    for i in range(4):
+        if np.allclose(np.linalg.det(all_R[i]), 1):
+            R.append(all_R[i])
+    R = np.array(R)
 
-    # generate a range of possible scalings of t
-    c = np.linspace(-10, 10, 100)
-    all_t = t[None] * c[:, None]
-    all_R = R[None] / c[:, None, None]
-
-    return all_R, all_t
+    return R, t
 
 
-def find_3d_points(E, P1, P2):
+def find_3d_points(matches, P1, P2, R, t):
     """This function reconstructs the 3D point cloud. In particular, it returns
     a N × 3 array called points, where N is the number of the corresponding
     matches. It also returns the reconstruction error rec err, which is defined
@@ -109,8 +109,41 @@ def find_3d_points(E, P1, P2):
     the two images.
 
     """
-    points = np.array([np.zeros(3)])
-    err = 0
+    points = np.empty((len(matches), 3))
+    reconstructed = np.empty(matches.shape)
+    for i in range(len(matches)):
+        x1 = matches[i, :2]
+        x2 = matches[i, 2:]
+
+        # setup A
+        A = np.array([
+            P1[0] - P1[2] * x1[0],
+            P1[1] - P1[2] * x1[1],
+            P2[0] - P2[2] * x2[0],
+            P2[1] - P2[2] * x2[1]
+        ])
+
+        # solve for x
+        _, _, V = np.linalg.svd(A)
+        points[i] = V[-1, :-1] / V[-1, -1]
+
+        # reproject points and compute error
+        r1 = np.dot(P1, np.append(points[i], [1]))
+        r2 = np.dot(P2, np.append(points[i], [1]))
+        reconstructed[i, :2] = r1[:2] / r1[2]
+        reconstructed[i, 2:] = r2[:2] / r2[2]
+
+    # compute reconstruction error only for points that actually lie in front
+    # of the cameras
+    Z1 = points[:, 2]
+    Z2 = (np.dot(R[2], points.T) + t[2]).T
+    ok = ((Z1 > 0) & (Z2 > 0))
+    if ok.any():
+        err = ((reconstructed[:, :2] - matches[:, :2]) ** 2 + (reconstructed[:, 2:] - matches[:, 2:]) ** 2) / 2
+        err = np.mean(err[ok])
+    else:
+        err = np.inf
+
     return points, err
 
 
@@ -192,7 +225,7 @@ def reconstruct_3d(name, plot=True):
             R2 = R[ri]
             P2 = np.dot(K2, np.concatenate([R2, t2[:, None]], axis=1))
 
-            points_3d, errs[ti, ri] = find_3d_points()
+            points_3d, errs[ti, ri] = find_3d_points(matches, P1, P2)
 
             Z1 = points_3d[:, 2]
             Z2 = (np.dot(R2[2], points_3d.T) + t2[2]).T
