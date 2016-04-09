@@ -1,8 +1,11 @@
+# coding=utf-8
+
 import os
 import numpy as np
 import scipy.misc
 import scipy.io
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 from mpl_toolkits.mplot3d import Axes3D
 
 
@@ -158,9 +161,11 @@ def plot_3d(points, R, t):
     Z2 = (np.dot(R[2], points.T) + t[2]).T
     ok = ((Z1 > 0) & (Z2 > 0))
 
+    colors = cm.jet(np.linspace(0, 1, len(points) - 1))[ok]
+
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    ax.plot(points[ok, 0], points[ok, 1], points[ok, 2], 'ro', zdir='y', alpha=0.3, markersize=2)
+    ax.scatter(points[ok, 0], points[ok, 1], points[ok, 2], c=colors, marker='+', zdir='y', alpha=0.3)
     ax.plot([0], [0], [0], 'ko', zdir='y')
     ax.plot([t[0]], [t[1]], [t[2]], 'ko', zdir='y')
 
