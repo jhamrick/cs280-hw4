@@ -161,13 +161,18 @@ def plot_3d(points, R, t):
     Z2 = (np.dot(R[2], points.T) + t[2]).T
     ok = ((Z1 > 0) & (Z2 > 0))
 
-    colors = cm.jet(np.linspace(0, 1, len(points) - 1))[ok]
+    colors = cm.jet(np.linspace(0, 1, len(points)))[ok]
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(points[ok, 0], points[ok, 1], points[ok, 2], c=colors, marker='+', zdir='y', alpha=0.3)
-    ax.plot([0], [0], [0], 'ko', zdir='y')
-    ax.plot([t[0]], [t[1]], [t[2]], 'ko', zdir='y')
+    ax.plot([0], [0], [0], 'ro', zdir='y')
+    ax.plot([t[0]], [t[1]], [t[2]], 'bo', zdir='y')
+
+    v1 = np.array([0, 0.1, 0])
+    v2 = np.dot(R, v) + t
+    ax.plot([0, v1[0]], [0, v1[1]], [0, v1[2]], 'r-', zdir='y')
+    ax.plot([0, v2[0]], [0, v2[1]], [0, v2[2]], 'r-', zdir='y')
 
     xmin = min(0, t[0], points[ok, 0].min())
     xmax = max(0, t[0], points[ok, 0].max())
@@ -225,9 +230,10 @@ def reconstruct_3d(name, plot=True):
     if plot:
         fig, ax = plt.subplots()
         ax.imshow(np.concatenate([I1, I2], axis=1))
-        ax.plot(matches[:, 0], matches[:, 1], 'r+')
-        ax.plot(matches[:, 2] + I1.shape[1], matches[:, 3], 'r+')
-        ax.plot(np.array([matches[:, 0], matches[:, 2] + I1.shape[1]]), matches[:, [1, 3]].T, 'r')
+        colors = cm.jet(np.linspace(0, 1, len(matches) - 1))
+        ax.scatter(matches[:, 0], matches[:, 1], c=colors, marker='+')
+        ax.scatter(matches[:, 2] + I1.shape[1], matches[:, 3], c=colors, marker='+')
+        #ax.plot(np.array([matches[:, 0], matches[:, 2] + I1.shape[1]]), matches[:, [1, 3]].T, 'r', alpha=0.1)
 
     # compute the fundamental matrix
     (F, res_err) = fundamental_matrix(matches)
