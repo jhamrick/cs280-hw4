@@ -60,7 +60,7 @@ def fundamental_matrix(matches):
     F = np.dot(U, np.dot(S, V))
 
     # de-normalize F
-    F = np.dot(T2.T, np.dot(F, T1))
+    F = np.dot(T1.T, np.dot(F, T2))
 
     # compute residual error
     d12 = np.empty(len(matches))
@@ -88,12 +88,11 @@ def find_rotation_translation(E):
 
     # R = U * R90.T * V
     R90 = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
-    R270 = np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
     all_R = np.array([
         np.dot(U, np.dot(R90.T, V)),
         -np.dot(U, np.dot(R90.T, V)),
-        np.dot(U, np.dot(R270.T, V)),
-        -np.dot(U, np.dot(R270.T, V))
+        np.dot(U, np.dot(R90, V)),
+        -np.dot(U, np.dot(R90, V))
     ])
 
     R = []
@@ -139,19 +138,14 @@ def find_3d_points(matches, P1, P2, R, t):
 
     # compute reconstruction error only for points that actually lie in front
     # of the cameras
-    Z1 = points[:, 2]
-    Z2 = (np.dot(R[2], points.T) + t[2]).T
-    ok = ((Z1 > 0) & (Z2 > 0))
-    if ok.any():
-        err = ((reconstructed[:, :2] - matches[:, :2]) ** 2 + (reconstructed[:, 2:] - matches[:, 2:]) ** 2) / 2
-        err = np.mean(err[ok])
-    else:
-        err = np.inf
+    err1 = np.sqrt(np.sum((reconstructed[:, :2] - matches[:, :2]) ** 2, axis=1))
+    err2 = np.sqrt(np.sum((reconstructed[:, 2:] - matches[:, 2:]) ** 2, axis=1))
+    err = np.mean((err1 + err2) / 2)
 
     return points, err
 
 
-def plot_3d(points, R, t):
+def plot_3d(points, R, t, colors=None):
     """This function plots the 3D points in a 3D plot and displays the camera
     centers for both cameras.
 
@@ -161,35 +155,86 @@ def plot_3d(points, R, t):
     Z2 = (np.dot(R[2], points.T) + t[2]).T
     ok = ((Z1 > 0) & (Z2 > 0))
 
-    colors = cm.jet(np.linspace(0, 1, len(points)))[ok]
+    if colors is not None:
+        colors = colors[ok]
+    else:
+        colors = cm.jet(np.linspace(0, 1, len(points)))[ok]
 
     fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(points[ok, 0], points[ok, 1], points[ok, 2], c=colors, marker='+', zdir='y', alpha=0.3)
-    ax.plot([0], [0], [0], 'ro', zdir='y')
-    ax.plot([t[0]], [t[1]], [t[2]], 'bo', zdir='y')
+    ax1 = fig.add_subplot(221, projection='3d')
+    ax2 = fig.add_subplot(222, projection='3d')
+    ax3 = fig.add_subplot(223, projection='3d')
+    ax4 = fig.add_subplot(224, projection='3d')
 
-    o1 = np.array([0, 0, 0])
-    v1 = np.array([0, 0, 0.5])
-    o2 = np.dot(R, o1) + t
-    v2 = np.dot(R, v1) + t
-    ax.plot([o1[0], v1[0]], [o1[1], v1[1]], [o1[2], v1[2]], 'r-', zdir='y')
-    ax.plot([o2[0], v2[0]], [o2[1], v2[1]], [o2[2], v2[2]], 'b-', zdir='y')
+    for ax in [ax1, ax2, ax3, ax4]:
+        ax.scatter(points[ok, 0], points[ok, 1], points[ok, 2], c=colors, marker='+', zdir='y', alpha=0.3)
+        ax.plot([0], [0], [0], 'ro', zdir='y')
+        ax.plot([t[0]], [t[1]], [t[2]], 'bo', zdir='y')
 
-    xmin = min(0, t[0], points[ok, 0].min())
-    xmax = max(0, t[0], points[ok, 0].max())
-    ymin = min(0, t[1], points[ok, 1].min())
-    ymax = max(0, t[1], points[ok, 1].max())
-    zmin = min(0, t[2], points[ok, 2].min())
-    zmax = max(0, t[2], points[ok, 2].max())
+        xmin = min(0, t[0], points[ok, 0].min())
+        xmax = max(0, t[0], points[ok, 0].max())
+        ymin = min(0, t[1], points[ok, 1].min())
+        ymax = max(0, t[1], points[ok, 1].max())
+        zmin = min(0, t[2], points[ok, 2].min())
+        zmax = max(0, t[2], points[ok, 2].max())
 
-    ax.set_xlim([xmin, xmax])
-    ax.set_ylim([zmin, zmax])
-    ax.set_zlim([ymin, ymax])
+        o1 = np.array([0, 0, 0])
+        v1x = np.array([(xmax - xmin) / 10, 0, 0])
+        v1y = np.array([0, (ymax - ymin) / 10, 0])
+        v1z = np.array([0, 0, (zmax - zmin) / 10])
+        o2 = np.dot(R, o1) + t
+        v2x = np.dot(R, v1x) + t
+        v2y = np.dot(R, v1y) + t
+        v2z = np.dot(R, v1z) + t
+        ax.plot([o1[0], v1x[0]], [o1[1], v1x[1]], [o1[2], v1x[2]], 'r-', zdir='y')
+        ax.plot([o2[0], v2x[0]], [o2[1], v2x[1]], [o2[2], v2x[2]], 'r-', zdir='y')
+        ax.plot([o1[0], v1y[0]], [o1[1], v1y[1]], [o1[2], v1y[2]], 'b-', zdir='y')
+        ax.plot([o2[0], v2y[0]], [o2[1], v2y[1]], [o2[2], v2y[2]], 'b-', zdir='y')
+        ax.plot([o1[0], v1z[0]], [o1[1], v1z[1]], [o1[2], v1z[2]], 'g-', zdir='y')
+        ax.plot([o2[0], v2z[0]], [o2[1], v2z[1]], [o2[2], v2z[2]], 'g-', zdir='y')
 
-    ax.set_xlabel("X")
-    ax.set_ylabel("Z")
-    ax.set_zlabel("Y")
+        ax.set_xlim([xmin, xmax])
+        ax.set_ylim([zmin, zmax])
+        ax.set_zlim([ymin, ymax])
+
+        ax.set_xlabel("X")
+        ax.set_ylabel("Z")
+        ax.set_zlabel("Y")
+
+    # XY plane
+    ax2.azim = -90
+    ax2.elev = 0
+
+    # YZ plane
+    ax3.azim = 0
+    ax3.elev = 0
+
+    # XZ plane
+    ax4.azim = -90
+    ax4.elev = 90
+
+    fig.set_size_inches(12, 12, forward=True)
+    plt.tight_layout()
+
+
+def plot_2d(I1, I2, matches, points_3d, P1, P2):
+    points_2d = np.empty(matches.shape)
+    for i in range(len(points_3d)):
+        r1 = np.dot(P1, np.append(points_3d[i], [1]))
+        r2 = np.dot(P2, np.append(points_3d[i], [1]))
+        points_2d[i, :2] = r1[:2] / r1[2]
+        points_2d[i, 2:] = r2[:2] / r2[2]
+
+    fig, ax = plt.subplots()
+    ax.imshow(np.concatenate([I1, I2], axis=1))
+
+    ax.plot(matches[:, 0], matches[:, 1], 'r+', alpha=0.5)
+    ax.plot(points_2d[:, 0], points_2d[:, 1], 'b+', alpha=0.5)
+    ax.plot(np.array([matches[:, 0], points_2d[:, 0]]), np.array([matches[:, 1], points_2d[:, 1]]), 'k')
+
+    ax.plot(matches[:, 2] + I1.shape[1], matches[:, 3], 'r+', alpha=0.5)
+    ax.plot(points_2d[:, 2] + I1.shape[1], points_2d[:, 3], 'b+', alpha=0.5)
+    ax.plot(np.array([matches[:, 2], points_2d[:, 2]]), np.array([matches[:, 3], points_2d[:, 3]]), 'k')
 
 
 def reconstruct_3d(name, plot=True):
@@ -229,13 +274,16 @@ def reconstruct_3d(name, plot=True):
     matches = np.loadtxt(os.path.join(data_dir, "{}_matches.txt".format(name)))
 
     # visualize matches (disable or enable this whenever you want)
-    if plot:
-        fig, ax = plt.subplots()
-        ax.imshow(np.concatenate([I1, I2], axis=1))
-        colors = cm.jet(np.linspace(0, 1, len(matches) - 1))
-        ax.scatter(matches[:, 0], matches[:, 1], c=colors, marker='+')
-        ax.scatter(matches[:, 2] + I1.shape[1], matches[:, 3], c=colors, marker='+')
-        #ax.plot(np.array([matches[:, 0], matches[:, 2] + I1.shape[1]]), matches[:, [1, 3]].T, 'r', alpha=0.1)
+    fig, ax = plt.subplots()
+    ax.imshow(np.concatenate([I1, I2], axis=1))
+    colors = np.array([
+        (matches[:, 0] - matches[:, 0].min()) / (matches[:, 0].max() - matches[:, 0].min()),
+        np.zeros(len(matches)),
+        (matches[:, 1] - matches[:, 1].min()) / (matches[:, 1].max() - matches[:, 1].min())
+    ]).T
+    ax.scatter(matches[:, 0], matches[:, 1], c=colors, marker='+')
+    ax.scatter(matches[:, 2] + I1.shape[1], matches[:, 3], c=colors, marker='+')
+    #ax.plot(np.array([matches[:, 0], matches[:, 2] + I1.shape[1]]), matches[:, [1, 3]].T, 'r', alpha=0.1)
 
     # compute the fundamental matrix
     (F, res_err) = fundamental_matrix(matches)
@@ -276,8 +324,11 @@ def reconstruct_3d(name, plot=True):
     t2 = t[ti[j]]
     R2 = R[ri[j]]
     P2 = np.dot(K2, np.concatenate([R2, t2[:, None]], axis=1))
+    print(t2)
+    print(R2)
 
     # compute the 3D points with the final P2
     points, err = find_3d_points(matches, P1, P2, R2, t2)
 
-    plot_3d(points, R2, t2)
+    plot_3d(points, R2, t2, colors)
+    plot_2d(I1, I2, matches, points, P1, P2)
