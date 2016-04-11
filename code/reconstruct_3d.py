@@ -51,8 +51,7 @@ def fundamental_matrix(matches):
     _, _, V = np.linalg.svd(A)
     # find minimum right eigenvector -- this is our f because when multiplied
     # with the other eigenvectors we get zero, which is what we want
-    f = V[-1]
-    F = f.reshape((3, 3))
+    F = V[-1].reshape((3, 3))
     # enforce that it is rank 2
     U, s, V = np.linalg.svd(F)
     S = np.diag(s)
@@ -60,7 +59,7 @@ def fundamental_matrix(matches):
     F = np.dot(U, np.dot(S, V))
 
     # de-normalize F
-    F = np.dot(T1.T, np.dot(F, T2))
+    F = np.dot(T2.T, np.dot(F, T1))
 
     # compute residual error
     d12 = np.empty(len(matches))
@@ -160,58 +159,116 @@ def plot_3d(points, R, t, colors=None):
     else:
         colors = cm.jet(np.linspace(0, 1, len(points)))[ok]
 
+    # x, y, and z of the points
+    X = points[ok, 0]
+    Y = points[ok, 1]
+    Z = points[ok, 2]
+
+    # camera centers
+    o1 = np.array([0, 0, 0])
+    o2 = np.dot(R, o1) + t
+
+    # compute axis limits so that the scale is the same on all axes, but the
+    # axis is centered on the data
+    xmin = min(0, o1[0], o2[0], X.min())
+    xmax = max(0, o1[0], o2[0], X.max())
+    xmid = (xmin + xmax) / 2
+    ymin = min(0, o1[1], o2[1], Y.min())
+    ymax = max(0, o1[1], o2[1], Y.max())
+    ymid = (ymin + ymax) / 2
+    zmin = min(0, o1[2], o2[2], Z.min())
+    zmax = max(0, o1[2], o2[2], Z.max())
+    zmid = (zmin + zmax) / 2
+    vmin = min(xmin, ymin, zmin)
+    vmax = max(xmax, ymax, zmax)
+    vscale = vmax - vmin
+    xmin = xmid - vscale / 2
+    xmax = xmid + vscale / 2
+    ymin = ymid - vscale / 2
+    ymax = ymid + vscale / 2
+    zmin = zmid - vscale / 2
+    zmax = zmid + vscale / 2
+
+    # vectors representing the camera coordinate systems
+    v1x = np.array([(vmax - vmin) / 10, 0, 0])
+    v1y = np.array([0, (vmax - vmin) / 10, 0])
+    v1z = np.array([0, 0, (vmax - vmin) / 10])
+    v2x = np.dot(R, v1x) + t
+    v2y = np.dot(R, v1y) + t
+    v2z = np.dot(R, v1z) + t
+
+    # create the figure
     fig = plt.figure()
     ax1 = fig.add_subplot(221, projection='3d')
-    ax2 = fig.add_subplot(222, projection='3d')
-    ax3 = fig.add_subplot(223, projection='3d')
-    ax4 = fig.add_subplot(224, projection='3d')
+    ax2 = fig.add_subplot(222)
+    ax3 = fig.add_subplot(223)
+    ax4 = fig.add_subplot(224)
 
-    for ax in [ax1, ax2, ax3, ax4]:
-        ax.scatter(points[ok, 0], points[ok, 1], points[ok, 2], c=colors, marker='+', zdir='y', alpha=0.3)
-        ax.plot([0], [0], [0], 'ro', zdir='y')
-        ax.plot([t[0]], [t[1]], [t[2]], 'bo', zdir='y')
-
-        xmin = min(0, t[0], points[ok, 0].min())
-        xmax = max(0, t[0], points[ok, 0].max())
-        ymin = min(0, t[1], points[ok, 1].min())
-        ymax = max(0, t[1], points[ok, 1].max())
-        zmin = min(0, t[2], points[ok, 2].min())
-        zmax = max(0, t[2], points[ok, 2].max())
-
-        o1 = np.array([0, 0, 0])
-        v1x = np.array([(xmax - xmin) / 10, 0, 0])
-        v1y = np.array([0, (ymax - ymin) / 10, 0])
-        v1z = np.array([0, 0, (zmax - zmin) / 10])
-        o2 = np.dot(R, o1) + t
-        v2x = np.dot(R, v1x) + t
-        v2y = np.dot(R, v1y) + t
-        v2z = np.dot(R, v1z) + t
-        ax.plot([o1[0], v1x[0]], [o1[1], v1x[1]], [o1[2], v1x[2]], 'r-', zdir='y')
-        ax.plot([o2[0], v2x[0]], [o2[1], v2x[1]], [o2[2], v2x[2]], 'r-', zdir='y')
-        ax.plot([o1[0], v1y[0]], [o1[1], v1y[1]], [o1[2], v1y[2]], 'b-', zdir='y')
-        ax.plot([o2[0], v2y[0]], [o2[1], v2y[1]], [o2[2], v2y[2]], 'b-', zdir='y')
-        ax.plot([o1[0], v1z[0]], [o1[1], v1z[1]], [o1[2], v1z[2]], 'g-', zdir='y')
-        ax.plot([o2[0], v2z[0]], [o2[1], v2z[1]], [o2[2], v2z[2]], 'g-', zdir='y')
-
-        ax.set_xlim([xmin, xmax])
-        ax.set_ylim([zmin, zmax])
-        ax.set_zlim([ymin, ymax])
-
-        ax.set_xlabel("X")
-        ax.set_ylabel("Z")
-        ax.set_zlabel("Y")
+    # 3D plot
+    ax1.scatter(X, Y, Z, c=colors, marker='+', zdir='y', alpha=0.3)
+    ax1.plot(o1[[0]], o1[[2]], o1[[2]], 'ro', zdir='y')
+    ax1.plot(o2[[0]], o2[[2]], o2[[2]], 'bo', zdir='y')
+    ax1.plot([o1[0], v1x[0]], [o1[1], v1x[1]], [o1[2], v1x[2]], 'r-', zdir='y')
+    ax1.plot([o2[0], v2x[0]], [o2[1], v2x[1]], [o2[2], v2x[2]], 'r-', zdir='y')
+    ax1.plot([o1[0], v1y[0]], [o1[1], v1y[1]], [o1[2], v1y[2]], 'b-', zdir='y')
+    ax1.plot([o2[0], v2y[0]], [o2[1], v2y[1]], [o2[2], v2y[2]], 'b-', zdir='y')
+    ax1.plot([o1[0], v1z[0]], [o1[1], v1z[1]], [o1[2], v1z[2]], 'g-', zdir='y')
+    ax1.plot([o2[0], v2z[0]], [o2[1], v2z[1]], [o2[2], v2z[2]], 'g-', zdir='y')
+    ax1.set_xlim([xmin, xmax])
+    ax1.set_ylim([zmin, zmax])
+    ax1.set_zlim([ymin, ymax])
+    ax1.set_xlabel("X")
+    ax1.set_ylabel("Z")
+    ax1.set_zlabel("Y")
+    ax1.set_aspect("equal")
 
     # XY plane
-    ax2.azim = -90
-    ax2.elev = 0
+    ax2.scatter(X, Y, c=colors, marker='+', alpha=0.3)
+    ax2.plot(o1[0], o1[1], 'ro')
+    ax2.plot(o2[0], o2[1], 'bo')
+    ax2.plot([o1[0], v1x[0]], [o1[1], v1x[1]], 'r-')
+    ax2.plot([o2[0], v2x[0]], [o2[1], v2x[1]], 'r-')
+    ax2.plot([o1[0], v1y[0]], [o1[1], v1y[1]], 'b-')
+    ax2.plot([o2[0], v2y[0]], [o2[1], v2y[1]], 'b-')
+    ax2.plot([o1[0], v1z[0]], [o1[1], v1z[1]], 'g-')
+    ax2.plot([o2[0], v2z[0]], [o2[1], v2z[1]], 'g-')
+    ax2.set_xlim([xmin, xmax])
+    ax2.set_ylim([ymin, ymax])
+    ax2.set_xlabel("X")
+    ax2.set_ylabel("Y")
+    ax2.set_aspect("equal")
 
-    # YZ plane
-    ax3.azim = 0
-    ax3.elev = 0
+    # ZY plane
+    ax3.scatter(Z, Y, c=colors, marker='+', alpha=0.3)
+    ax3.plot(o1[2], o1[1], 'ro')
+    ax3.plot(o2[2], o2[1], 'bo')
+    ax3.plot([o1[2], v1x[2]], [o1[1], v1x[1]], 'r-')
+    ax3.plot([o2[2], v2x[2]], [o2[1], v2x[1]], 'r-')
+    ax3.plot([o1[2], v1y[2]], [o1[1], v1y[1]], 'b-')
+    ax3.plot([o2[2], v2y[2]], [o2[1], v2y[1]], 'b-')
+    ax3.plot([o1[2], v1z[2]], [o1[1], v1z[1]], 'g-')
+    ax3.plot([o2[2], v2z[2]], [o2[1], v2z[1]], 'g-')
+    ax3.set_xlim([zmin, zmax])
+    ax3.set_ylim([ymin, ymax])
+    ax3.set_xlabel("Z")
+    ax3.set_ylabel("Y")
+    ax3.set_aspect("equal")
 
     # XZ plane
-    ax4.azim = -90
-    ax4.elev = 90
+    ax4.scatter(X, Z, c=colors, marker='+', alpha=0.3)
+    ax4.plot(o1[0], o1[2], 'ro')
+    ax4.plot(o2[0], o2[2], 'bo')
+    ax4.plot([o1[0], v1x[0]], [o1[2], v1x[2]], 'r-')
+    ax4.plot([o2[0], v2x[0]], [o2[2], v2x[2]], 'r-')
+    ax4.plot([o1[0], v1y[0]], [o1[2], v1y[2]], 'b-')
+    ax4.plot([o2[0], v2y[0]], [o2[2], v2y[2]], 'b-')
+    ax4.plot([o1[0], v1z[0]], [o1[2], v1z[2]], 'g-')
+    ax4.plot([o2[0], v2z[0]], [o2[2], v2z[2]], 'g-')
+    ax4.set_xlim([xmin, xmax])
+    ax4.set_ylim([zmin, zmax])
+    ax4.set_xlabel("X")
+    ax4.set_ylabel("Z")
+    ax4.set_aspect("equal")
 
     fig.set_size_inches(12, 12, forward=True)
     plt.tight_layout()
@@ -234,7 +291,10 @@ def plot_2d(I1, I2, matches, points_3d, P1, P2):
 
     ax.plot(matches[:, 2] + I1.shape[1], matches[:, 3], 'r+', alpha=0.5)
     ax.plot(points_2d[:, 2] + I1.shape[1], points_2d[:, 3], 'b+', alpha=0.5)
-    ax.plot(np.array([matches[:, 2], points_2d[:, 2]]), np.array([matches[:, 3], points_2d[:, 3]]), 'k')
+    ax.plot(np.array([matches[:, 2] + I1.shape[1], points_2d[:, 2] + I1.shape[1]]), np.array([matches[:, 3], points_2d[:, 3]]), 'k')
+
+    ax.set_xlim([0, I1.shape[1] * 2])
+    ax.set_ylim([I1.shape[0], 0])
 
 
 def reconstruct_3d(name, plot=True):
@@ -255,6 +315,7 @@ def reconstruct_3d(name, plot=True):
     otherwise things will crash
 
     """
+    np.set_printoptions(formatter={'float': '{: 0.4f}'.format})
 
     ## Load images, K matrices and matches
     data_dir = os.path.join('..', 'data', name)
@@ -266,6 +327,8 @@ def reconstruct_3d(name, plot=True):
     # K matrices
     K1 = np.array(scipy.io.loadmat(os.path.join(data_dir, "{}1_K.mat".format(name)))["K"], order='C')
     K2 = np.array(scipy.io.loadmat(os.path.join(data_dir, "{}2_K.mat".format(name)))["K"], order='C')
+    print("K1 = \n{}".format(K1))
+    print("K2 = \n{}".format(K2))
 
     # corresponding points
     # this is a N x 4 where:
@@ -287,13 +350,18 @@ def reconstruct_3d(name, plot=True):
 
     # compute the fundamental matrix
     (F, res_err) = fundamental_matrix(matches)
-    print('Residual in F = {}'.format(res_err))
+    print('F = \n{}'.format(F))
+    print('Residual in F = {:.4f}'.format(res_err))
 
     # compute the essential matrix
     E = np.dot(np.dot(K2.T, F), K1)
 
     # compute the rotation and translation matrices
     (R, t) = find_rotation_translation(E)
+    for R2 in R:
+        print("R =\n{}".format(R2))
+    for t2 in t:
+        print("t = {}".format(t2))
 
     # Find R2 and t2 from R, t such that largest number of points lie in front
     # of the image planes of the two cameras
@@ -319,13 +387,11 @@ def reconstruct_3d(name, plot=True):
 
     j = 0 # pick one out the best combinations
     (ti, ri) = np.nonzero(num_points == np.max(num_points))
-    print('Reconstruction error = {}'.format(errs[ti[j], ri[j]]))
+    print('Reconstruction error = {:.4f}'.format(errs[ti[j], ri[j]]))
 
     t2 = t[ti[j]]
     R2 = R[ri[j]]
     P2 = np.dot(K2, np.concatenate([R2, t2[:, None]], axis=1))
-    print(t2)
-    print(R2)
 
     # compute the 3D points with the final P2
     points, err = find_3d_points(matches, P1, P2, R2, t2)
