@@ -65,8 +65,8 @@ def fundamental_matrix(matches):
     d12 = np.empty(len(matches))
     d21 = np.empty(len(matches))
     for i in range(len(matches)):
-        d12[i] = np.abs(np.dot(p1[i], np.dot(F, p2[i]))) / np.linalg.norm(np.dot(F, p2[i]))
-        d21[i] = np.abs(np.dot(p2[i], np.dot(F, p1[i]))) / np.linalg.norm(np.dot(F, p1[i]))
+        d12[i] = np.abs(np.dot(p2[i], np.dot(F, p1[i]))) / np.linalg.norm(np.dot(F, p1[i]))
+        d21[i] = np.abs(np.dot(p2[i], np.dot(F, p1[i]))) / np.linalg.norm(np.dot(F.T, p2[i]))
     res_err = np.sum(d12 ** 2 + d21 ** 2) / (2 * len(matches))
 
     return F, res_err
@@ -351,7 +351,7 @@ def reconstruct_3d(name, plot=True):
     # compute the fundamental matrix
     (F, res_err) = fundamental_matrix(matches)
     print('F = \n{}'.format(F))
-    print('Residual in F = {:.4f}'.format(res_err))
+    print('Residual in F = {}'.format(res_err))
 
     # compute the essential matrix
     E = np.dot(np.dot(K2.T, F), K1)
